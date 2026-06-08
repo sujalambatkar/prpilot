@@ -134,7 +134,12 @@ export default function RepoPage() {
           config && (
             <RepoConfig
               repoId={repoId}
-              initial={config as Parameters<typeof RepoConfig>[0]["initial"]}
+              initial={config as {
+                enabled: boolean;
+                agents: Record<string, boolean>;
+                min_severity: string;
+                auto_approve_on_pass: boolean;
+              }}
               token={token}
             />
           )
