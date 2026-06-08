@@ -1,35 +1,43 @@
+import time
+from collections import defaultdict
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request, Query
 from app.db.mongo import get_db
-from app.api.auth_router import verify_dashboard_jwt
+from app.api.auth_router import verify_dashboard_jwt, get_token_from_request
 from bson import ObjectId
 
 router = APIRouter(prefix="/dashboard")
 
+# Simple in-memory sliding window rate limiter
+_rate_store: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_rate_limit(key: str, max_req: int = 60, window: int = 60) -> None:
+    now = time.time()
+    _rate_store[key] = [t for t in _rate_store[key] if now - t < window]
+    if len(_rate_store[key]) >= max_req:
+        raise HTTPException(status_code=429, detail="Too many requests")
+    _rate_store[key].append(now)
+
 
 def _require_auth(request: Request) -> dict:
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    return verify_dashboard_jwt(auth[7:])
+    token = get_token_from_request(request)
+    return verify_dashboard_jwt(token)
 
 
 def _serialize(doc: dict) -> dict:
     if "_id" in doc:
         doc["id"] = str(doc.pop("_id"))
-    # Serialize datetime fields to ISO strings
     for key in ("created_at", "completed_at", "updated_at"):
         if key in doc and isinstance(doc[key], datetime):
             doc[key] = doc[key].isoformat() + "Z"
-    # Recursively serialize agent_results if present
-    for result in doc.get("agent_results", []):
-        pass  # agent results have no datetime fields
     return doc
 
 
 @router.get("/repos")
 async def list_repos(request: Request):
-    _require_auth(request)
+    user = _require_auth(request)
+    _check_rate_limit(f"repos:{user['sub']}", max_req=30, window=60)
     db = get_db()
     installations = await db.installations.find({"active": True}).to_list(100)
 
@@ -54,7 +62,6 @@ async def list_repos(request: Request):
                     "account_avatar_url": inst.get("account_avatar_url", ""),
                     "review_count": count,
                 })
-
     return {"repos": repos}
 
 
@@ -65,7 +72,8 @@ async def list_reviews(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=100),
 ):
-    _require_auth(request)
+    user = _require_auth(request)
+    _check_rate_limit(f"reviews:{user['sub']}", max_req=60, window=60)
     db = get_db()
 
     query: dict = {}
@@ -85,13 +93,13 @@ async def list_reviews(
 
     reviews = [_serialize(r) async for r in cursor]
     total = await db.reviews.count_documents(query)
-
     return {"reviews": reviews, "total": total, "page": page, "per_page": per_page}
 
 
 @router.get("/reviews/{review_id}")
 async def get_review(review_id: str, request: Request):
-    _require_auth(request)
+    user = _require_auth(request)
+    _check_rate_limit(f"review:{user['sub']}", max_req=60, window=60)
     db = get_db()
 
     try:
@@ -102,13 +110,13 @@ async def get_review(review_id: str, request: Request):
     doc = await db.reviews.find_one({"_id": oid})
     if not doc:
         raise HTTPException(status_code=404, detail="Review not found")
-
     return _serialize(doc)
 
 
 @router.get("/stats")
 async def get_stats(request: Request):
-    _require_auth(request)
+    user = _require_auth(request)
+    _check_rate_limit(f"stats:{user['sub']}", max_req=20, window=60)
     db = get_db()
 
     total = await db.reviews.count_documents({})

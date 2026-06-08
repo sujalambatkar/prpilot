@@ -2,17 +2,15 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Literal
 from app.db.mongo import get_db
-from app.api.auth_router import verify_dashboard_jwt
+from app.api.auth_router import get_token_from_request, verify_dashboard_jwt
 from datetime import datetime
 
 router = APIRouter(prefix="/repos")
 
 
 def _require_auth(request: Request) -> dict:
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    return verify_dashboard_jwt(auth[7:])
+    token = get_token_from_request(request)
+    return verify_dashboard_jwt(token)
 
 
 class UpdateConfigRequest(BaseModel):

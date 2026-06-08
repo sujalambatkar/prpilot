@@ -31,18 +31,14 @@ const AGENT_META: Record<string, { label: string }> = {
 
 export default function ReviewDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [token, setToken] = useState("");
   const [review, setReview] = useState<Review | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"findings" | "comment">("findings");
 
   useEffect(() => {
-    const t = localStorage.getItem("prpilot_token") || "";
-    setToken(t);
-    if (!t || !id) return;
-
-    getReview(t, id)
+    if (!id) return;
+    getReview(id)
       .then(setReview)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));

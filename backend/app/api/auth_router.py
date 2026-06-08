@@ -3,16 +3,15 @@ import time
 import httpx
 import jwt
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from app.config import get_settings
 from app.db.mongo import get_db
 
 router = APIRouter(prefix="/auth")
 
-# state -> issued_timestamp; expire after 10 minutes
 _state_store: dict[str, float] = {}
-_STATE_TTL = 600  # seconds
+_STATE_TTL = 600
 
 
 def _purge_expired_states() -> None:
@@ -43,6 +42,18 @@ def verify_dashboard_jwt(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+def get_token_from_request(request: Request) -> str:
+    # Prefer httpOnly cookie
+    token = request.cookies.get("prpilot_token")
+    if token:
+        return token
+    # Fall back to Authorization header (for API clients)
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:]
+    raise HTTPException(status_code=401, detail="Not authenticated")
+
+
 @router.get("/github")
 async def github_oauth_start():
     settings = get_settings()
@@ -64,13 +75,11 @@ async def github_oauth_start():
 async def github_oauth_callback(code: str, state: str):
     settings = get_settings()
 
-    # Validate state — prevents CSRF
     _purge_expired_states()
     if state not in _state_store:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
     del _state_store[state]
 
-    # Validate code looks sane (alphanumeric + hyphens only)
     if not code or len(code) > 256 or not all(c.isalnum() or c in "-_" for c in code):
         raise HTTPException(status_code=400, detail="Invalid OAuth code")
 
@@ -92,10 +101,7 @@ async def github_oauth_callback(code: str, state: str):
 
         user_resp = await client.get(
             "https://api.github.com/user",
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Accept": "application/vnd.github+json",
-            },
+            headers={"Authorization": f"Bearer {access_token}", "Accept": "application/vnd.github+json"},
         )
         user_resp.raise_for_status()
         gh_user = user_resp.json()
@@ -106,26 +112,35 @@ async def github_oauth_callback(code: str, state: str):
         "login": gh_user["login"],
         "email": gh_user.get("email"),
         "avatar_url": gh_user.get("avatar_url", ""),
-        # Never store access_token in plaintext in prod — acceptable for MVP
         "access_token": access_token,
     }
-    await db.users.update_one(
-        {"github_id": gh_user["id"]},
-        {"$set": user_doc},
-        upsert=True,
-    )
+    await db.users.update_one({"github_id": gh_user["id"]}, {"$set": user_doc}, upsert=True)
 
     jwt_token = create_dashboard_jwt(user_doc)
-
-    # Only redirect to configured frontend — prevents open redirect
     safe_frontend = settings.frontend_url.rstrip("/")
-    return RedirectResponse(f"{safe_frontend}/dashboard?token={jwt_token}")
+
+    # Set httpOnly cookie — token never exposed in URL or JS
+    response = RedirectResponse(f"{safe_frontend}/dashboard")
+    response.set_cookie(
+        key="prpilot_token",
+        value=jwt_token,
+        httponly=True,
+        secure=not settings.debug,  # HTTPS only in production
+        samesite="lax",
+        max_age=7 * 24 * 60 * 60,
+        path="/",
+    )
+    return response
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie("prpilot_token", path="/")
+    return {"ok": True}
 
 
 @router.get("/me")
 async def get_current_user(request: Request):
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    payload = verify_dashboard_jwt(auth[7:])
+    token = get_token_from_request(request)
+    payload = verify_dashboard_jwt(token)
     return {"github_id": payload["sub"], "login": payload["login"]}

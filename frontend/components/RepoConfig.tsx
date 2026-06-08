@@ -13,7 +13,6 @@ interface Config {
 interface Props {
   repoId: number;
   initial: Config;
-  token: string;
 }
 
 const AGENTS = [
@@ -61,7 +60,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   );
 }
 
-export function RepoConfig({ repoId, initial, token }: Props) {
+export function RepoConfig({ repoId, initial }: Props) {
   const [config, setConfig] = useState<Config>(initial);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -76,7 +75,7 @@ export function RepoConfig({ repoId, initial, token }: Props) {
     setSaving(true);
     setError("");
     try {
-      await updateRepoConfig(token, repoId, config);
+      await updateRepoConfig(repoId, config);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {

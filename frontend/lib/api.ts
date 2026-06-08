@@ -45,15 +45,15 @@ export interface Repo {
   review_count: number;
 }
 
-async function apiFetch<T>(path: string, token?: string, init?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(init?.headers as Record<string, string>),
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    credentials: "include", // send httpOnly cookie automatically
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers as Record<string, string>),
+    },
+  });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`API ${res.status}: ${err}`);
@@ -61,36 +61,39 @@ async function apiFetch<T>(path: string, token?: string, init?: RequestInit): Pr
   return res.json();
 }
 
-export async function getRepos(token: string): Promise<{ repos: Repo[] }> {
-  return apiFetch("/dashboard/repos", token);
+export async function checkAuth(): Promise<{ github_id: string; login: string } | null> {
+  try {
+    return await apiFetch("/auth/me");
+  } catch {
+    return null;
+  }
+}
+
+export async function getRepos(): Promise<{ repos: Repo[] }> {
+  return apiFetch("/dashboard/repos");
 }
 
 export async function getReviews(
-  token: string,
   params?: { repo_id?: number; page?: number; per_page?: number }
 ): Promise<{ reviews: Review[]; total: number; page: number; per_page: number }> {
   const qs = new URLSearchParams();
   if (params?.repo_id) qs.set("repo_id", String(params.repo_id));
   if (params?.page) qs.set("page", String(params.page));
   if (params?.per_page) qs.set("per_page", String(params.per_page));
-  return apiFetch(`/dashboard/reviews?${qs}`, token);
+  return apiFetch(`/dashboard/reviews?${qs}`);
 }
 
-export async function getReview(token: string, id: string): Promise<Review> {
-  return apiFetch(`/dashboard/reviews/${id}`, token);
+export async function getReview(id: string): Promise<Review> {
+  return apiFetch(`/dashboard/reviews/${id}`);
 }
 
-export async function getRepoConfig(token: string, repoId: number) {
-  return apiFetch(`/repos/${repoId}/config`, token);
+export async function getRepoConfig(repoId: number) {
+  return apiFetch(`/repos/${repoId}/config`);
 }
 
-export async function updateRepoConfig(token: string, repoId: number, config: object) {
-  return apiFetch(`/repos/${repoId}/config`, token, {
+export async function updateRepoConfig(repoId: number, config: object) {
+  return apiFetch(`/repos/${repoId}/config`, {
     method: "POST",
     body: JSON.stringify(config),
   });
-}
-
-export async function getDashboardStats(token: string) {
-  return apiFetch("/dashboard/stats", token);
 }

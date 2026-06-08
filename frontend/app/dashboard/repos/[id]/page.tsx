@@ -21,20 +21,15 @@ export default function RepoPage() {
   const { id } = useParams<{ id: string }>();
   const repoId = parseInt(id, 10);
 
-  const [token, setToken] = useState("");
   const [config, setConfig] = useState<Record<string, unknown> | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"reviews" | "config">("reviews");
 
   useEffect(() => {
-    const t = localStorage.getItem("prpilot_token") || "";
-    setToken(t);
-    if (!t) return;
-
     Promise.all([
-      getRepoConfig(t, repoId),
-      getReviews(t, { repo_id: repoId, per_page: 30 }),
+      getRepoConfig(repoId),
+      getReviews({ repo_id: repoId, per_page: 30 }),
     ]).then(([cfg, revData]) => {
       setConfig(cfg as Record<string, unknown>);
       setReviews(revData.reviews);
@@ -56,7 +51,6 @@ export default function RepoPage() {
 
   return (
     <div style={{ background: "#0d1117", minHeight: "100vh", color: "#e6edf3" }}>
-      {/* Header */}
       <div style={{ borderBottom: "1px solid #30363d", padding: "14px 24px", display: "flex", alignItems: "center", gap: 8 }}>
         <Link href="/" style={{ color: "#8b949e", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>PRPilot</Link>
         <span style={{ color: "#30363d" }}>/</span>
@@ -66,12 +60,9 @@ export default function RepoPage() {
       </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px" }}>
-        <div style={{ marginBottom: 4 }}>
-          <h1 style={{ fontWeight: 700, fontSize: 22, fontFamily: "JetBrains Mono, monospace" }}>{repoName}</h1>
-        </div>
+        <h1 style={{ fontWeight: 700, fontSize: 22, fontFamily: "JetBrains Mono, monospace", marginBottom: 4 }}>{repoName}</h1>
 
-        {/* Tabs */}
-        <div style={{ borderBottom: "1px solid #30363d", marginBottom: 24, display: "flex", gap: 0 }}>
+        <div style={{ borderBottom: "1px solid #30363d", marginBottom: 24, display: "flex" }}>
           <button style={tabStyle(tab === "reviews")} onClick={() => setTab("reviews")}>
             Reviews {reviews.length > 0 && `(${reviews.length})`}
           </button>
@@ -84,45 +75,23 @@ export default function RepoPage() {
           <div style={{ color: "#8b949e", textAlign: "center", padding: 48 }}>Loading…</div>
         ) : tab === "reviews" ? (
           reviews.length === 0 ? (
-            <div style={{ color: "#8b949e", textAlign: "center", padding: 48 }}>
-              No reviews yet for this repository.
-            </div>
+            <div style={{ color: "#8b949e", textAlign: "center", padding: 48 }}>No reviews yet for this repository.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {reviews.map((review) => (
                 <Link key={review.id} href={`/dashboard/reviews/${review.id}`} style={{ textDecoration: "none" }}>
-                  <div style={{
-                    background: "#161b22",
-                    border: "1px solid #30363d",
-                    borderRadius: 8,
-                    padding: "14px 16px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    cursor: "pointer",
-                  }}
+                  <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
                     onMouseEnter={e => (e.currentTarget.style.borderColor = "#8957e5")}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#30363d")}
-                  >
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#30363d")}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-                        {review.pr_title}
-                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{review.pr_title}</div>
                       <div style={{ fontSize: 12, color: "#8b949e" }}>
                         <span style={{ fontFamily: "JetBrains Mono, monospace" }}>#{review.pr_number}</span>
-                        {" · "}@{review.pr_author}
-                        {" · "}{timeAgo(review.created_at)}
+                        {" · "}@{review.pr_author}{" · "}{timeAgo(review.created_at)}
                       </div>
                     </div>
                     {review.language && (
-                      <span style={{
-                        fontSize: 11,
-                        color: "#8957e5",
-                        background: "rgba(137,87,229,0.1)",
-                        border: "1px solid rgba(137,87,229,0.2)",
-                        borderRadius: 10,
-                        padding: "2px 8px",
-                      }}>{review.language}</span>
+                      <span style={{ fontSize: 11, color: "#8957e5", background: "rgba(137,87,229,0.1)", border: "1px solid rgba(137,87,229,0.2)", borderRadius: 10, padding: "2px 8px" }}>{review.language}</span>
                     )}
                     <VerdictBadge verdict={review.verdict} />
                   </div>
@@ -134,13 +103,7 @@ export default function RepoPage() {
           config && (
             <RepoConfig
               repoId={repoId}
-              initial={config as {
-                enabled: boolean;
-                agents: Record<string, boolean>;
-                min_severity: string;
-                auto_approve_on_pass: boolean;
-              }}
-              token={token}
+              initial={config as { enabled: boolean; agents: Record<string, boolean>; min_severity: string; auto_approve_on_pass: boolean }}
             />
           )
         )}
