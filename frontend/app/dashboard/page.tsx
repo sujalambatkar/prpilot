@@ -248,7 +248,38 @@ export default function DashboardPage() {
               padding: "48px 24px",
               textAlign: "center",
             }}>
-              <div style={{ color: "#8b949e", fontSize: 14 }}>No reviews yet. Open a pull request on an installed repo to get started.</div>
+              <div style={{ maxWidth: 480, margin: "0 auto" }}>
+                <div style={{ fontWeight: 700, fontSize: 16, color: "#e6edf3", marginBottom: 24 }}>
+                  No reviews yet — here is how to get started
+                </div>
+                {[
+                  { n: "1", title: "Install PRPilot on a repo", desc: "Click \"+ Install on repo\" in the top right, select the repositories you want PRPilot to monitor, and save." },
+                  { n: "2", title: "Open a pull request", desc: "On any installed repo, create a new branch, push a change, and open a pull request on GitHub as normal." },
+                  { n: "3", title: "Wait 60 seconds", desc: "PRPilot will automatically receive the webhook, run 5 AI agents in parallel, and post a review comment directly on your PR." },
+                  { n: "4", title: "View the results here", desc: "Come back to this dashboard to see the full breakdown — agent findings, severity levels, and the posted comment." },
+                ].map((step) => (
+                  <div key={step.n} style={{ display: "flex", gap: 16, marginBottom: 20, textAlign: "left" }}>
+                    <div style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      background: "#8957e5",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      marginTop: 1,
+                    }}>{step.n}</div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "#e6edf3", marginBottom: 3 }}>{step.title}</div>
+                      <div style={{ fontSize: 13, color: "#8b949e", lineHeight: 1.5 }}>{step.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
