@@ -125,8 +125,8 @@ async def github_oauth_callback(code: str, state: str):
         key="prpilot_token",
         value=jwt_token,
         httponly=True,
-        secure=not settings.debug,  # HTTPS only in production
-        samesite="lax",
+        secure=True,
+        samesite="none",  # required for cross-origin (Vercel → Render)
         max_age=7 * 24 * 60 * 60,
         path="/",
     )
@@ -135,7 +135,7 @@ async def github_oauth_callback(code: str, state: str):
 
 @router.post("/logout")
 async def logout(response: Response):
-    response.delete_cookie("prpilot_token", path="/")
+    response.delete_cookie("prpilot_token", path="/", samesite="none", secure=True)
     return {"ok": True}
 
 
