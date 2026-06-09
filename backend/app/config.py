@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # App
     app_base_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
+    # Optional: comma-separated list of extra allowed CORS origins
+    extra_allowed_origins: str = ""
     jwt_secret: str = "change-me-in-production"
     debug: bool = False
 

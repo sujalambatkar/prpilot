@@ -44,8 +44,16 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json" if settings.debug else None,
     )
 
-    # CORS — only allow configured frontend origins
-    allowed_origins = list({settings.frontend_url, "http://localhost:3000"})
+    # CORS — strip trailing slashes to avoid mismatch with browser Origin header
+    origins: set[str] = {"http://localhost:3000", "http://localhost:3001"}
+    origins.add(settings.frontend_url.rstrip("/"))
+    if settings.extra_allowed_origins:
+        for o in settings.extra_allowed_origins.split(","):
+            o = o.strip().rstrip("/")
+            if o:
+                origins.add(o)
+    allowed_origins = list(origins)
+    logger.info("CORS allowed origins: %s", allowed_origins)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
