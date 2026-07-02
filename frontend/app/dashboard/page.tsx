@@ -25,9 +25,35 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
+  const [waking, setWaking] = useState(false);
 
   useEffect(() => {
-    checkAuth().then((user) => setAuthed(!!user));
+    // Ping /health immediately so the backend starts waking up
+    fetch(`${API_URL}/health`, { credentials: "include" }).catch(() => {});
+
+    let wakingTimer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+
+    async function tryAuth() {
+      wakingTimer = setTimeout(() => setWaking(true), 4000);
+      while (attempts < 5) {
+        const user = await checkAuth();
+        if (user !== null || attempts >= 4) {
+          clearTimeout(wakingTimer);
+          setWaking(false);
+          setAuthed(!!user);
+          return;
+        }
+        attempts++;
+        await new Promise((r) => setTimeout(r, 6000));
+      }
+      clearTimeout(wakingTimer);
+      setWaking(false);
+      setAuthed(false);
+    }
+
+    tryAuth();
+    return () => clearTimeout(wakingTimer);
   }, []);
 
   const load = useCallback(async () => {
@@ -57,7 +83,18 @@ function DashboardContent() {
   useEffect(() => { load(); }, [load]);
 
   if (authed === null) {
-    return <div style={{ background: "#0d1117", minHeight: "100vh" }} />;
+    return (
+      <div style={{ background: "#0d1117", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {waking ? (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ color: "#8b949e", fontSize: 14, marginBottom: 8 }}>Backend is waking up...</div>
+            <div style={{ color: "#8b949e", fontSize: 12 }}>Free tier cold start — this takes up to 60 seconds</div>
+          </div>
+        ) : (
+          <div />
+        )}
+      </div>
+    );
   }
 
   if (!authed) {
